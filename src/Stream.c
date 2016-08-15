@@ -1,6 +1,22 @@
 #include "Stream.h"
 
 /** 
+ *   brief  : Initialise InStream and allocate memory for it
+ *  
+ *   Return : return pointer to allocted memory for initalised InStream
+ *   
+ */
+InStream *initInStream()
+{
+  InStream *inStream = malloc(sizeof(InStream));
+  inStream->file = NULL;
+  inStream->byteToRead = 0;
+  inStream->bitIndex = 8;
+
+  return inStream;
+}
+
+/** 
  *   brief  : Initialise OutStream and allocate memory for it
  * 
  *   Return : return pointer to allocted memory for initalised OutStream
@@ -17,16 +33,55 @@ OutStream *initOutStream()
   return outStream;
 }
 
+
+/** 
+ *   brief  :  Free the allocted memory for InStream and set it to NULL
+ *  
+ *   Input  : inStream is a pointer to pointer of InStream to be freed
+ *  
+ */
+void freeInStream(InStream **inStream)
+{
+    free(*inStream);
+    *inStream = NULL;
+}
+
 /** 
  *   brief  : Free the allocted memory for OutStream and set it to NULL
  *  
- *   Input  : outStream is a pointer to pointer of OutStream
+ *   Input  : outStream is a pointer to pointer of OutStream to be freed
  *    
  */
 void freeOutStream(OutStream **outStream)
 {
   free(*outStream);
-  *outStream = NULL ;
+  *outStream = NULL;
+}
+
+
+/** 
+ *   brief  : Open the selected files in selected  mode for InStream
+ *  
+ *   Input  : filename        is the name of the file to be opened
+ *   Input  : mode            is the file operation mode 
+ *            Possible value
+ *            "r"             open file for reading. File must exist !
+ *  
+ *   Input  : outStream       is the pointer to the OutStream
+ *  
+ *   Return : return          the InStream with opened file
+ *  
+ */ 
+InStream *openInStream(char *filename, char *mode, InStream *inStream)
+{
+  inStream->file = fopen(filename, mode);
+  
+  if(inStream->file == NULL)
+    Throw(ERR_FAILED_TO_OPEN);
+  else
+    inStream->filename = filename;
+
+  return inStream;
 }
 
 /** 
@@ -35,7 +90,6 @@ void freeOutStream(OutStream **outStream)
  *   Input  : filename        is the name of the file to be opened
  *   Input  : mode            is the file operation mode 
  *            Possible value
- *            "r"             read mode. File must exist
  *            "w"             write mode. Create an empty file if the file initially does not exist or discard the contents if the file initially exist 
  *            "a"             open for appending
  *  
@@ -48,19 +102,27 @@ void freeOutStream(OutStream **outStream)
 OutStream *openOutStream(char *filename, char *mode, OutStream *outStream)
 {
   outStream->file = fopen( filename, mode);
-    
-  if(outStream->file == NULL)
-    Throw(ERR_FILE_OPEN_FAILED);
-    
+ 
   outStream->filename = filename;
 
   return outStream;
 }
 
 /** 
+ *   brief  : Close the file inside the InStream
+ *  
+ *   Input  : inStream  is the pointer to the InStream
+ *  
+ */
+void closeInStream(InStream *inStream)
+{
+  fclose(inStream->file);
+}
+
+/** 
  *   brief  : Close the file inside the OutStream and flush any remaing unwritten data
  *  
- *   Input  : outStream   is the pointer to the OutStream
+ *   Input  : outStream  is the pointer to the OutStream
  *  
  */ 
 void *closeOutStream(OutStream *outStream)
@@ -70,6 +132,59 @@ void *closeOutStream(OutStream *outStream)
 
   fclose(outStream->file);
 }
+
+/** 
+ *   brief  : Read 1 bit of data from byteToRead in InStream
+ *  
+ *   Input  : inStream is a pointer to inStream
+ *  
+ *   Return : return 1 if the bit value is 1
+ *            return 0 if the bit value is 0
+
+ */
+uint8_t streamReadBit(InStream *inStream)
+{
+  uint8_t bitTest ;
+
+  bitTest = inStream->byteToRead & (1 << inStream->bitIndex) ; //read lSB first
+  inStream -> bitIndex ++ ;
+
+  if (bitTest != 0 )
+    return 1 ;
+  else
+    return 0 ;
+}
+
+/** 
+ *   brief  : Read multiple bits of data from the file stream
+ *  
+ *   Input  : inStream  is the pointer to InStream
+ *   Input  : bitSize   is the number of bits to be read
+ *  
+ *   Return : return the data read
+ */
+uint64_t streamReadBits(InStream *inStream, uint8_t bitSize)
+{
+  uint64_t int dataRead = 0;
+  uint8_t bitRead = 0 , index ;
+
+  for ( index = 0 ; index < bitSize ; index ++)
+  {
+    if (inStream->bitIndex == 8 ) //fully extracted 1 byte
+    {
+      if (inStream->file != NULL)
+        fread(&(inStream->byteToRead),1,1,inStream->file); //read new byte
+
+			inStream->bitIndex = 0 ;
+    }
+
+    bitRead = streamReadBit(inStream);
+    dataRead = dataRead | bitRead << index;
+  }
+
+  return dataRead ;
+}
+
 
 /** 
  *   brief  : Write 1 bit of data into OutStream 
@@ -136,4 +251,24 @@ void streamFlush(OutStream *outStream)
 
   outStream->byteToWrite = 0;
   outStream->bitIndex = 0 ;
+}
+
+
+/** 
+ *   brief  : Check end of file (EOF) for the file currently opened in InStream
+ *  
+ *   Input  : inStream is a pointer to InStream
+ *  
+ *   Return : return 1 if end of file is encountered
+ *            return 0 if end of file is not encountered yet
+ */
+uint8_t checkEndOfFile(InStream *inStream)
+{
+  uint8_t result ;
+  result = feof (inStream->file) ;
+
+  if (result != 0)
+    return 1;
+  else
+    return 0;
 }

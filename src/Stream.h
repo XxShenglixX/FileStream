@@ -7,29 +7,47 @@
 #include <stdint.h>
 #include <CException.h>
 
+typedef enum {ERR_FAILED_TO_OPEN} ERR;
+
+typedef struct InStream InStream;
 typedef struct OutStream OutStream;
 
-typedef enum {ERR_FAILED_TO_OPEN} ERR;
+struct InStream
+{
+  char *filename;
+  FILE *file;
+  uint8_t byteToRead;
+  uint8_t bitIndex;
+};
 
 struct OutStream
 {
   char *filename;
   FILE *file;
-  int byteToWrite;
-  int bitIndex;
+  uint8_t byteToWrite;
+  uint8_t bitIndex;
 };
 
-#define ERR_FILE_OPEN_FAILED    -1
-
+InStream *initInStream();
 OutStream *initOutStream();
-void freeOutStream(OutStream **out);
-void *closeOutStream(OutStream *out);
 
-OutStream *openOutStream(char *filename, char *mode, OutStream *out);
+void freeInStream(InStream **inStream);
+void freeOutStream(OutStream **outStream);
 
-void streamWriteBit(OutStream *out, uint8_t bitToWrite);
-void streamWriteBits(OutStream *out, uint64_t value, uint8_t bitSize);
-void streamWriteDataBlock(OutStream *out,char *buffer);
-void streamFlush(OutStream *out);
+void closeInStream(InStream *inStream);
+void closeOutStream(OutStream *outStream);
 
+InStream *openInStream(char *filename, char *mode, InStream *inStream);
+OutStream *openOutStream(char *filename, char *mode, OutStream *outStream);
+
+uint8_t  streamReadBit(InStream *inStream);
+uint64_t streamReadBits(InStream *inStream, uint8_t bitSize);
+
+void streamWriteBit(OutStream *outStream, uint8_t bitToWrite);
+void streamWriteBits(OutStream *outStream, uint64_t value, uint8_t bitSize);
+void streamWriteDataBlock(OutStream *outStream,char *buffer);
+
+void streamFlush(OutStream *outStream);
+
+uint8_t checkEndOfFile(InStream *inStream);
 #endif // Stream_H
